@@ -1,0 +1,20 @@
+{#
+/**
+ * @file
+ * Template file for 'rt-notifications-block'.
+ */
+#}
+{% set counter = count ? count : '' %}
+{% set color = count ? '#DB3B21' : '' %}
+
+<div class="rt-notifications">
+  <div class="wrapper">
+    <div id="counter" style="background: {{ color }};">{{ counter }}</div>
+    <div id="button"></div>
+    <div id="list">
+      {% for notification in notifications %}
+        <p class="{{ notification.class }}">{{ notification.message }}<span class="date"> {{ notification.time }}</span></p>
+      {% endfor %}
+    </div>
+  </div>
+</div>

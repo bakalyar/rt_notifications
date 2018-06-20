@@ -1,0 +1,7 @@
+rtn.websocket_settings:
+  path: '/admin/config/system/realtime-notifications'
+  defaults:
+    _form: '\Drupal\rt_notifications\Form\WebSocketSettingsForm'
+    _title: 'WebSocket settings'
+  requirements:
+    _permission: 'administer site configuration'

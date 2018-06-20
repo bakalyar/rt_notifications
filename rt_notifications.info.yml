@@ -1,0 +1,5 @@
+name: Real-Time Notifications
+type: module
+description: 'Allows to get real-time notifications by users who are subscribed on some events.'
+package: Real-Time Notifications
+core: 8.x

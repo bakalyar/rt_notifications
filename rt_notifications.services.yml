@@ -1,0 +1,4 @@
+services:
+  rtn.websocket_client:
+    class: Drupal\rt_notifications\Connector\WebSocketConnector
+    arguments: ['@config.factory', '@logger.factory', '@messenger']

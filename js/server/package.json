@@ -1,0 +1,9 @@
+{
+  "name": "rt-notifications",
+  "version": "0.0.1",
+  "description": "Real-time notifications using socket.io",
+  "dependencies": {
+    "express": "^4.15.2",
+    "socket.io": "^2.1.0"
+  }
+}

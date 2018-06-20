@@ -1,0 +1,225 @@
+<?php
+
+/**
+ * @file
+ * Contains rt_notifications.module.
+ */
+
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\Core\Cache\Cache;
+use Drupal\Core\Block\BlockPluginInterface;
+
+/**
+ * Action constants
+ */
+const RTN_ACTION_NODE_CREATE = 'node_create';
+const RTN_ACTION_NODE_UPDATE = 'node_update';
+const RTN_ACTION_NODE_DELETE = 'node_delete';
+
+/**
+ * Implements hook_requirements().
+ */
+function rt_notifications_requirements($phase) {
+  $requirements = [];
+
+  $websocket_server_config = Drupal::config('rtn.websocket');
+  $host = $websocket_server_config->get('host');
+  $port = $websocket_server_config->get('port');
+  $connection_is_configured = ($host && $port) ? TRUE : FALSE;
+
+  // Check if server connection is set:
+  $requirements['Real-Time Notifications'] = [
+    'title' => t('Real-Time Notifications server connection'),
+    'value' => $connection_is_configured ? "$host:$port" : t('Not configured!'),
+  ];
+  if (!$connection_is_configured) {
+    $requirements['Real-Time Notifications']['severity'] = REQUIREMENT_ERROR;
+    $requirements['Real-Time Notifications']['description'] = t('Missing <a href="/admin/config/system/realtime-notifications">server configuration</a>!');
+  }
+
+  return $requirements;
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function rt_notifications_form_user_form_alter(&$form, FormStateInterface $form_state) {
+  $form['field_rtn_select_users']['#states'] = [
+    'visible' => array(
+      ':input[name="field_rtn_user_selection_mode"]' => array('value' => 'uid'),
+    ),
+  ];
+
+  // Remove own uid and anonymous user from the list.
+  $build_info = $form_state->getBuildInfo();
+  /** @var Drupal\user\ProfileForm $object */
+  $object = $build_info['callback_object'];
+  $form_user_id = $object->getEntity()->id();
+  $current_uid = \Drupal::currentuser()->id();
+  $user_ids = &$form['field_rtn_select_users']['widget']['#options'];
+
+  // If creating a new user or editing someone else's profile.
+  if (!$form_user_id || $form_user_id != $current_uid) {
+    unset($user_ids[$form_user_id], $user_ids[0]);
+  }
+  else {
+    unset($user_ids[$current_uid], $user_ids[0]);
+  }
+
+  $form['field_rtn_user_settings'] = [
+    '#type' => 'details',
+    '#title' => t('Real-Time Notifications'),
+    '#open' => TRUE,
+    '#weight' => 20,
+  ];
+
+  foreach (['field_rtn_actions', 'field_rtn_select_users', 'field_rtn_user_selection_mode'] as $field) {
+    if (isset($form[$field])) {
+      $form['field_rtn_user_settings'][$field] = $form[$field];
+      unset($form[$field]);
+    }
+  }
+}
+
+/**
+ * Get list of subscribers (user IDs).
+ *
+ * @param $uid
+ *  User ID.
+ *
+ * @param $action
+ *  Action machine name.
+ *
+ * @return array
+ */
+function rt_notifications_get_subscribers($uid, $action) {
+  $cid = "rt_notifications_subscribers:$action:$uid";
+  $tags = ['rt_notifications_subscribers'];
+  $cache_backend = \Drupal::cache();
+  $db = \Drupal::database();
+
+  if ($cache = $cache_backend->get($cid)) {
+    $subscribers = $cache->data;
+  }
+  else {
+    // Get all explicitly subscribed users.
+    $query = $db->select('user__field_rtn_actions', 'rtna');
+    $query->join('user__field_rtn_select_users', 'rtnsu', 'rtna.entity_id = rtnsu.entity_id');
+    $uid_subscribers = $query->fields('rtnsu', ['entity_id'])
+      ->condition('rtna.field_rtn_actions_value', $action)
+      ->condition('rtnsu.field_rtn_select_users_target_id', $uid)
+      ->execute()->fetchCol();
+
+    // Get users subscribed to "All".
+    $query = $db->select('user__field_rtn_user_selection_mode', 'rtnusm');
+    $query->join('user__field_rtn_actions', 'rtna', 'rtnusm.entity_id = rtna.entity_id');
+
+    $all_subscribers = $query->fields('rtnusm', ['entity_id'])
+      ->condition('rtnusm.field_rtn_user_selection_mode_value', 'all')
+      ->condition('rtna.field_rtn_actions_value', $action)
+      ->execute()->fetchCol();
+
+    $subscribers = array_unique(array_merge($uid_subscribers, $all_subscribers));
+    sort($subscribers);
+
+    $cache_backend->set($cid, $subscribers, CacheBackendInterface::CACHE_PERMANENT, $tags);
+  }
+
+  return $subscribers;
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_insert()) for users.
+ */
+function rt_notifications_user_insert(EntityInterface $entity) {
+  Cache::invalidateTags(['rt_notifications_subscribers']);
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_update() for users.
+ */
+function rt_notifications_user_update(EntityInterface $entity) {
+  Cache::invalidateTags(['rt_notifications_subscribers']);
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_delete()) for users.
+ */
+function rt_notifications_user_delete(EntityInterface $entity) {
+  Cache::invalidateTags(['rt_notifications_subscribers']);
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_insert().
+ */
+function rt_notifications_node_insert(EntityInterface $entity) {
+  _send_message_to_subscribers($entity, RTN_ACTION_NODE_CREATE);
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_update().
+ */
+function rt_notifications_node_update(EntityInterface $entity) {
+  _send_message_to_subscribers($entity, RTN_ACTION_NODE_UPDATE);
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_delete().
+ */
+function rt_notifications_node_delete(EntityInterface $entity) {
+  _send_message_to_subscribers($entity, RTN_ACTION_NODE_DELETE);
+}
+
+/**
+ * Implements hook_theme().
+ */
+function rt_notifications_theme($existing, $type, $theme, $path) {
+  return [
+    'rt_notifications_block' => [
+      'variables' => [
+        'notifications' => [],
+        'count' => 0,
+      ],
+    ],
+  ];
+}
+
+/**
+ * Implements hook_block_view_BASE_ID_alter().
+ */
+function rt_notifications_block_view_rt_notifications_block_alter(array &$build, BlockPluginInterface $block) {
+  $build['#contextual_links'] = [];
+}
+
+/**
+ * Helper function for sending message via WebSocket.
+ *
+ * @param \Drupal\Core\Entity\EntityInterface $entity
+ * @param $action
+ */
+function _send_message_to_subscribers(EntityInterface $entity, $action) {
+  $webSocketConnector = \Drupal::service('rtn.websocket_client');
+  $webSocketConnector->connect();
+  $client = $webSocketConnector->getClient();
+  $action_str = str_replace('node_', '', $action) . 'd';
+
+  // Send message to all users which are subscribed on logged-in user and this action.
+  if ($client) {
+    $entity_title = $entity->get('title')->value;
+    $current_user_id = \Drupal::currentUser()->id();
+    $current_user_name = \Drupal::currentUser()->getDisplayName();
+    $subscribed_users = rt_notifications_get_subscribers($current_user_id, $action);
+
+    $text = "The user %current_user_name has %action_str the node %entity_title";
+    $variables = [
+      '%current_user_name' => $current_user_name,
+      '%action_str' => $action_str,
+      '%entity_title' => $entity_title,
+    ];
+
+    $webSocketConnector->sendMessage($subscribed_users, $text, $variables);
+    $webSocketConnector->disconnect();
+  }
+}

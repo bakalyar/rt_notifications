@@ -1,0 +1,15 @@
+socket_io:
+  js:
+    js/socket.io.js: {}
+
+rt_notifications_block:
+  css:
+    theme:
+      css/rt_notifications_block.css: {}
+  js:
+    js/rt_notifications_block.js: {}
+  dependencies:
+    - core/jquery
+    - core/jquery.once
+    - core/drupalSettings
+    - rt_notifications/socket_io

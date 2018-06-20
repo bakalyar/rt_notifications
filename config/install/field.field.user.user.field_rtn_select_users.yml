@@ -1,0 +1,28 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.user.field_rtn_select_users
+  module:
+    - user
+id: user.user.field_rtn_select_users
+field_name: field_rtn_select_users
+entity_type: user
+bundle: user
+label: 'Select users'
+description: 'Hold ctrl key to select more than one user or shift to select range'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:user'
+  handler_settings:
+    include_anonymous: true
+    filter:
+      type: _none
+    target_bundles: null
+    sort:
+      field: _none
+    auto_create: false
+field_type: entity_reference

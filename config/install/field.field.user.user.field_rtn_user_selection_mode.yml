@@ -1,0 +1,22 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.user.field_rtn_user_selection_mode
+  module:
+    - options
+    - user
+id: user.user.field_rtn_user_selection_mode
+field_name: field_rtn_user_selection_mode
+entity_type: user
+bundle: user
+label: 'User selection mode'
+description: ''
+required: true
+translatable: false
+default_value:
+  -
+    value: all
+default_value_callback: ''
+settings: {  }
+field_type: list_string

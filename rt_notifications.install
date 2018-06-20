@@ -1,0 +1,60 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the Real-Time Notifications module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function rt_notifications_install() {
+  $user_form = \Drupal::entityTypeManager()
+    ->getStorage('entity_form_display')->load('user.user.default');
+
+  $content = $user_form->get('content');
+  $content['field_rtn_actions'] = [
+    'type' => 'options_buttons',
+    'weight' => 20,
+    'region' => 'content',
+    'settings' => [],
+    'third_party_settings' => [],
+  ];
+  $content['field_rtn_user_selection_mode'] = [
+    'type' => 'options_buttons',
+    'weight' => 21,
+    'region' => 'content',
+    'settings' => [],
+    'third_party_settings' => [],
+  ];
+  $content['field_rtn_select_users'] = [
+    'type' => 'options_select',
+    'weight' => 22,
+    'region' => 'content',
+    'settings' => [],
+    'third_party_settings' => [],
+  ];
+  $user_form->set('content', $content);
+  $user_form->save();
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function rt_notifications_uninstall() {
+  // Remove RTN fields from active configuration.
+  $active_configs = [
+    'field.field.user.user.field_rtn_actions',
+    'field.field.user.user.field_rtn_select_users',
+    'field.field.user.user.field_rtn_user_selection_mode',
+    'field.storage.user.field_rtn_actions',
+    'field.storage.user.field_rtn_select_users',
+    'field.storage.user.field_rtn_user_selection_mode',
+  ];
+
+  foreach ($active_configs as $config) {
+    Drupal::configFactory()
+      ->getEditable($config)
+      ->delete();
+  }
+}
