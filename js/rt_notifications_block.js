@@ -31,7 +31,10 @@
           if (typeof settings.user.uid !== 'undefined') {
             var user_from_drupal = settings.user.uid;
 
-            socket.emit('subscribe to user', { user: user_from_drupal });
+            // Tell io-server that this user is subscribed for notifications.
+            socket.emit('subscribed users', { user: user_from_drupal });
+
+            // Get a new notification.
             socket.on('outcome message', function(data) {
               var msg = Drupal.t(data.text, data.arguments) +'&nbsp;<span class="date">' + data.date + '</span>';
               $list_selector.prepend('<p class="unread">' + msg + '</p>');
